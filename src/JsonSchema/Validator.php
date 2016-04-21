@@ -32,9 +32,49 @@ class Validator extends Constraint
      */
     public function check($value, $schema = null, $path = null, $i = null)
     {
+        if ($this->checkMode === self::CHECK_MODE_ARR_AS_OBJ) {
+            $value = $this->convertFromAllArrays($value);
+        }
+
         $validator = $this->getFactory()->createInstanceFor('schema');
         $validator->check($value, $schema);
 
         $this->addErrors(array_unique($validator->getErrors(), SORT_REGULAR));
+    }
+    
+    /**
+     * Converts the result of a json_encode($data, true) to a json_encode($data, false)
+     *
+     * @param mixed $data
+     * @throws InvalidArgumentException
+     * @return mixed
+     */
+    private function convertFromAllArrays($data)
+    {
+        if (
+            is_null($data) ||
+            is_bool($data) ||
+            is_int($data) ||
+            is_float($data) ||
+            is_string($data)
+        ) {
+            return $data;
+        }
+
+        if (is_object($data) || is_resource($data)) {
+            throw new InvalidArgumentException('Found an object or resource when CHECK_MODE_ARR_AS_OBJ was set.');
+        }
+
+        // only array is left...
+
+        foreach ($data as &$v) {
+            $v = $this->convertFromAllArrays($v);
+        }
+
+        if (count(array_filter(array_keys($data), 'is_string')) == 0) {
+            return $data;
+        }
+
+        return (object) $data;
     }
 }
